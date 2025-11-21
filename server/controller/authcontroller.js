@@ -1,27 +1,27 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import userModal from "../models/usermodels";
+import userModal from "../models/usermodels.js";
 
 
 export const register = async (req, res) =>{
     const {name, email, password} = req.body;
 
     if(!name || !email || !password){
-        return res.json({sucess: false, message: "Missing user data"});
+        return res.json({success: false, message: "Missing user data"});
     }
 
     try {
         const existing_user = await userModal.findOne({email});
         
         if(existing_user){
-            return res.json({sucess:false, message:"user already exist"});
+            return res.json({success:false, message:"user already exist"});
         }
 
         const hased_password = await bcrypt.hash(password, 10);
 
         const user = new userModal({name, email, password: hased_password});
 
-        user.save();
+        await user.save();
         
         const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn:"7d"});
 
@@ -29,10 +29,10 @@ export const register = async (req, res) =>{
             httpOnly: true,
             secure : process.env.NODE_ENV === "production",
             sameSite : process.env.NODE_ENV === "production" ? "none" : "strict",
-            maxage : 7*24*60*60*100,
+            maxAge : 7*24*60*60*100,
         })
 
-        return ees.json({success:true});
+        return res.json({success:true});
 
     } catch (error) {
         res.json({success: false, message: error.message})
@@ -44,7 +44,7 @@ export const login = async (req, res)=> {
     const {email, password} = req.body; 
 
     if(!email || !password){
-        return res.json({sucess:false, message:"email and password is missing"})
+        return res.json({success:false, message:"email and password is missing"})
     }
      
 
@@ -63,7 +63,7 @@ export const login = async (req, res)=> {
 
             const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn:"7d"});
 
-        res.cookie('token', token,{
+        res.cookie('token',{
             httpOnly: true,
             secure : process.env.NODE_ENV === "production",
             sameSite : process.env.NODE_ENV === "production" ? "none" : "strict",
