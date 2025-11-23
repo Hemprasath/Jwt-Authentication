@@ -57,7 +57,6 @@ export const login = async (req, res)=> {
         return res.json({success:false, message:"email and password is missing"})
     }
      
-
     try {
         const user = await userModal.findOne({email});
 
@@ -73,11 +72,11 @@ export const login = async (req, res)=> {
 
             const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn:"7d"});
 
-        res.cookie('token',{
+        res.cookie('token',token,{
             httpOnly: true,
             secure : process.env.NODE_ENV === "production",
             sameSite : process.env.NODE_ENV === "production" ? "none" : "strict",
-            maxage : 7*24*60*60*100,
+            maxAge : 7*24*60*60*100,
         })
 
         return res.json({success:true, message:"login successfull..."});
@@ -107,10 +106,8 @@ export const logout = (req, res) => {
 
 export const sendOtp = async (req, res) =>{
     try {
-        const {userId} = req.body;
-
+        const userId = req.userId;
         const user = await userModal.findById(userId);
-
         if(user.isAccountVerified){
             return res.json({success:false, message : "user already verified"});
         }
@@ -137,14 +134,15 @@ export const sendOtp = async (req, res) =>{
 }
 
 export const verifyOtp = async (req, res) =>{
-    const {userId, otp} = req.body;
+    const userId = req.userId;
+    const { otp } = req.body;
 
     if(!userId || !otp){
         return res.json({success: false, message : "Not a valid otp for user"});
     }
 
     try {
-        const user = await userModal.findOne(userId);
+        const user = await userModal.findById(userId);
 
         if(!user){
             return res.json({success: false, message : "user not found"});
@@ -163,6 +161,85 @@ export const verifyOtp = async (req, res) =>{
         await user.save();
 
         return res.json({success : true, message : "Email verified successfully"});
+    } catch (error) {
+        return res.json({success: false, message : error.message});
+    }
+}
+
+export const isAuthenticated = async (req, res, next) =>{
+
+    try {
+        return res.json({success: true});
+    } catch (error) {
+        return res.json({success: false, message : error.message});
+    }
+}
+
+export const sendResetOtp = async (req, res)=>{
+    const {email} = req.body;
+
+    if(!email){
+        return res.json({success:false, message : "email is required"});
+    }
+
+    try {
+        const user = await userModal.findOne({email});
+        if(!user){
+            return res.json({success:false, message : "user not found"});
+        }
+
+        const otp = String(Math.floor(100000 + Math.random()* 900000));
+
+        user.resetOtp = otp;
+        user.verifyOtpExperiedAt = Date.now() + 15 * 60 *1000;
+        await user.save(); 
+
+        const mail = {
+            from : process.env.SENDER_EMAIL,
+            to : user.email,
+            subject : "Password reset OTP",
+            text : `Your reset otp is : ${otp}`
+        }
+
+        await transporter.sendMail(mail);
+
+        return res.json({success: true, message : "OTP send to your email"});
+
+    } catch (error) {
+        return res.json({success: false, message : error.message});
+    }
+}
+
+export const resetPassword = async (req, res) =>{
+    const {email, otp, newPassword} = req.body;
+
+    if(!email || !otp || !newPassword){
+        return res.json({success: false, message : "email, otp, and new password are required"});
+    }
+
+    try {
+        const user = await userModal.findOne({email});
+        if(!user){
+            return res.json({success: false, message : "user not found"});
+        }
+
+        if(user.resetOtp === "" || user.resetOtp !== otp){
+            return res.json({success: false, message : "Invalid OTP"});
+        }
+
+        if(user.resetOtpExperiedAt < Date.now()){
+            return res.json({success: false, message : "OTP Experied"});
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        user.password = hashedPassword;
+        user.resetOtp = '';
+        user.resetOtpExperiedAt = 0;
+        await user.save();
+
+        return res.json({success: true, message : "otp reset successfully"});
+
     } catch (error) {
         return res.json({success: false, message : error.message});
     }
