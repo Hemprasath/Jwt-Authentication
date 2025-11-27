@@ -191,7 +191,7 @@ export const sendResetOtp = async (req, res)=>{
         const otp = String(Math.floor(100000 + Math.random()* 900000));
 
         user.resetOtp = otp;
-        user.verifyOtpExperiedAt = Date.now() + 15 * 60 *1000;
+        user.resetOtpExperiedAt = Date.now() + 15 * 60 * 1000;
         await user.save(); 
 
         const mail = {
@@ -238,9 +238,10 @@ export const resetPassword = async (req, res) =>{
         user.resetOtpExperiedAt = 0;
         await user.save();
 
-        return res.json({success: true, message : "otp reset successfully"});
+        return res.json({success: true, message : "Password reset successfully"});
 
     } catch (error) {
         return res.json({success: false, message : error.message});
     }
 }
+ 
